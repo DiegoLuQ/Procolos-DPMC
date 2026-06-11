@@ -1,0 +1,155 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Colegio {
+  id                    Int                     @id @default(autoincrement())
+  nombre_colegio        String
+  created_at            DateTime                @default(now())
+  usuarios              Usuario[]
+  alumnos               Alumno[]
+  incidentes            Incidente[]
+  configuracion_sistema ConfiguracionSistema?
+}
+
+model Rol {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique // 'super_admin', 'admin', 'usuario'
+  usuarios Usuario[]
+}
+
+model Usuario {
+  id                    Int                     @id @default(autoincrement())
+  user                  String                  @unique
+  pass                  String
+  nombre_completo       String
+  mail                  String                  @unique
+  celular               String?
+  id_rol                Int
+  rol                   Rol                     @relation(fields: [id_rol], references: [id])
+  id_colegio            Int?
+  colegio               Colegio?                @relation(fields: [id_colegio], references: [id])
+  estado                Boolean                 @default(true)
+  cargo                 String                  // ENUM
+  protocolos_creados    ProtocoloVersion[]      @relation("CreadorProtocolo")
+  incidentes_creados    Incidente[]             @relation("CreadorIncidente")
+  lecturas_incidentes   IncidenteLectura[]
+  comentarios_incidente IncidenteComentario[]
+  adjuntos_incidente    IncidenteAdjunto[]
+}
+
+model Alumno {
+  id                 Int                   @id @default(autoincrement())
+  rut                String                @unique
+  nombre             String
+  telefono           String?
+  curso              String
+  id_colegio         Int
+  colegio            Colegio               @relation(fields: [id_colegio], references: [id])
+  incidentes         IncidenteAlumno[]
+}
+
+model CategoriaProtocolo {
+  id          Int         @id @default(autoincrement())
+  nombre      String      @unique
+  descripcion String?
+  protocolos  Protocolo[]
+}
+
+model Protocolo {
+  id           Int                @id @default(autoincrement())
+  codigo       String             @unique
+  nombre       String
+  id_categoria Int
+  categoria    CategoriaProtocolo @relation(fields: [id_categoria], references: [id])
+  estado       Boolean            @default(true)
+  versiones    ProtocoloVersion[]
+}
+
+model ProtocoloVersion {
+  id             Int         @id @default(autoincrement())
+  id_protocolo   Int
+  protocolo      Protocolo   @relation(fields: [id_protocolo], references: [id], onDelete: Cascade)
+  version        Int
+  descripcion    String?
+  pasos_a_seguir String      // JSON stringified array of strings
+  url_pdf        String?
+  responsables   String      // JSON stringified array of cargos
+  creado_por     Int
+  creador        Usuario     @relation("CreadorProtocolo", fields: [creado_por], references: [id])
+  fecha_creacion DateTime    @default(now())
+  incidentes     Incidente[]
+}
+
+model Incidente {
+  id                   Int                   @id @default(autoincrement())
+  id_creador           Int
+  creador              Usuario               @relation("CreadorIncidente", fields: [id_creador], references: [id])
+  id_protocolo_version Int
+  protocolo_version    ProtocoloVersion      @relation(fields: [id_protocolo_version], references: [id])
+  id_colegio           Int
+  colegio              Colegio               @relation(fields: [id_colegio], references: [id])
+  fecha_hora           DateTime
+  descripcion          String
+  lugar_incidente      String                
+  estado               String                @default("Abierto") 
+  tipo_recordatorio    String                @default("ninguno") 
+  valor_recordatorio   String?
+  proxima_notificacion DateTime?
+  alumnos              IncidenteAlumno[]
+  lecturas             IncidenteLectura[]
+  comentarios          IncidenteComentario[]
+  adjuntos             IncidenteAdjunto[]
+}
+
+model IncidenteAlumno {
+  id_incidente Int
+  incidente    Incidente @relation(fields: [id_incidente], references: [id], onDelete: Cascade)
+  id_alumno    Int
+  alumno       Alumno    @relation(fields: [id_alumno], references: [id], onDelete: Cascade)
+
+  @@id([id_incidente, id_alumno])
+}
+
+model IncidenteLectura {
+  id           Int       @id @default(autoincrement())
+  id_incidente Int
+  incidente    Incidente @relation(fields: [id_incidente], references: [id], onDelete: Cascade)
+  id_usuario   Int
+  usuario      Usuario   @relation(fields: [id_usuario], references: [id], onDelete: Cascade)
+  visto        Boolean   @default(false)
+  fecha_visto  DateTime?
+}
+
+model IncidenteComentario {
+  id             Int       @id @default(autoincrement())
+  id_incidente   Int
+  incidente      Incidente @relation(fields: [id_incidente], references: [id], onDelete: Cascade)
+  id_usuario     Int
+  usuario        Usuario   @relation(fields: [id_usuario], references: [id], onDelete: Cascade)
+  comentario     String
+  fecha_creacion DateTime  @default(now())
+}
+
+model IncidenteAdjunto {
+  id             Int       @id @default(autoincrement())
+  id_incidente   Int
+  incidente      Incidente @relation(fields: [id_incidente], references: [id], onDelete: Cascade)
+  id_usuario     Int
+  usuario        Usuario   @relation(fields: [id_usuario], references: [id])
+  nombre_archivo String
+  url_archivo    String
+  tamano_bytes   Int
+  fecha_subida   DateTime  @default(now())
+}
+
+model ConfiguracionSistema {
+  id_colegio           Int     @id
+  colegio              Colegio @relation(fields: [id_colegio], references: [id], onDelete: Cascade)
+  comportamiento_envio String  @default("preguntar_siempre") 
+}
